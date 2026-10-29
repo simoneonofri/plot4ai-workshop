@@ -44,6 +44,12 @@ def main():
             entries.append({'id': card_id, 'label': card['label'], 'category': group['category'], 'colour': group['colour'], 'front': f'assets/cards/{card_id}-front.webp', 'back': f'assets/cards/{card_id}-back.webp', 'thumbnail': f'assets/thumbs/{card_id}.webp', 'pages': [front_page + 1, front_page + 2]})
     manifest = {'source': SOURCE, 'pdf': 'plot4ai-A6.pdf', 'pdfSha256': hashlib.sha256(args.pdf.read_bytes()).hexdigest(), 'release': 'pdf-release-43', 'cards': entries}
     (ROOT / 'cards.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+    html_path = ROOT / 'index.html'
+    if html_path.exists():
+        embedded = json.dumps(manifest, ensure_ascii=False, separators=(',', ':')).replace('<', r'\u003c')
+        html = html_path.read_text()
+        html = re.sub(r'(<script type="application/json" id="card-data">).*?(</script>)', lambda m: m[1] + embedded + m[2], html, flags=re.S)
+        html_path.write_text(html)
     print(f'Extracted {len(entries)} cards: 276 full-size faces and 138 thumbnails')
 
 if __name__ == '__main__':
