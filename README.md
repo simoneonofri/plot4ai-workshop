@@ -1,25 +1,27 @@
-# PLOT4ai Workshop
+# PLOT4ai Card Browser
 
-Private, independent digital adaptation of the PLOT4ai cards, with a searchable card browser and a facilitated workshop table inspired by the LINDDUN GO digital tools. No build step or runtime dependencies.
+A simple image browser of the original PLOT4ai cards: thumbnails, click to enlarge, front/back toggle, zoom, previous/next, category filter and search by card name. Keyboard: left/right arrows to browse, F to flip, Escape to close. Responsive layout, no build step, no dependencies for running the site.
 
 ## Run
 
-Run `npm start` from this folder and open <http://127.0.0.1:4173>. Alternatively run `python3 -m http.server 4173 --bind 127.0.0.1`. Use an HTTP server rather than opening index.html directly. Routes: `#browser`, `#table`, `#about`.
+From this folder, run `npm start` (requires Python 3), then open <http://127.0.0.1:4173>. Serve over HTTP rather than opening index.html directly. No hosting is configured. The repository is private.
 
-Filter by category, phase, role and AI type. Filters combine with AND. Selection persists while filtering; “Select results” adds the current results and “Clear selection” clears the whole deck. Start a shuffled session, review cards, record findings, and export JSON to resume or CSV for follow-up. Review outcomes and notes save automatically in this browser. The session overview allows revisiting any card. The timer is per card and is not persisted. This is a shared-screen tool, without multiplayer synchronization.
+## Original artwork and attribution
 
-Session files contain potentially sensitive system details. Browser storage is local to the browser and origin and can be cleared; keep JSON backups. No session content is put into URLs. No external requests are made by the app until a user follows an external reference link. No hosted deployment has been configured.
+All 138 cards (276 faces) are rasterized directly from `plot4ai-A6.pdf` in [PLOT4ai PDF release 43](https://github.com/PLOT4ai/plot4ai-library/releases/tag/pdf-release-43). Each A6 page already contains one complete card face; no artwork, text, footer or border is cut off. The first six pages contain introductory material and are not threat cards. Cards occupy pages 7–282 in front/back pairs.
 
-## Source and license
+Cards by [PLOT4ai and its contributors](https://plot4.ai/), licensed **CC BY-SA 4.0**; full license in `LICENSE`. This adaptation converts PDF pages into WebP images, generates thumbnails and adds navigation. Card artwork and wording are retained. This is an independent adaptation, with no endorsement implied. [LINDDUN GO Card Browser](https://downloads.linddun.org/linddun-go/cardbrowser/v241203/index.html) is the functional reference; no LINDDUN source or artwork is included.
 
-The 138 cards in `deck.json` are an unchanged copy of [PLOT4ai/plot4ai-library](https://github.com/PLOT4ai/plot4ai-library), commit `5f4b43e36d372ab7160e4ada7f81b4848c42056f`. The source JSON, rather than the PDF release, is authoritative for this adaptation. Eight groups retain their original colors, questions, explanations, recommendations, phases, roles, AI types and source links. Local card IDs are group ID plus one-based source position and are tied to this exact revision. Import rejects other revisions to prevent attaching notes to the wrong card.
+`cards.json` records each card’s category, front/back images, original PDF page numbers and source PDF SHA-256. `deck.json` is the unchanged, machine-readable upstream deck at revision `5f4b43e36d372ab7160e4ada7f81b4848c42056f`. Full-size images are rendered at 3× PDF resolution (216 dpi); thumbnails are 260 pixels wide. The browser uses only local assets and makes no external requests unless a source link is followed. The earlier workshop/table UI has been replaced by this image browser; its source remains in Git history.
 
-PLOT4ai content and this adaptation are provided under **CC BY-SA 4.0**; see the full upstream `LICENSE`. Attribution: PLOT4ai contributors, [plot4.ai](https://plot4.ai/). Interface, display IDs, filtering and session functions are additions; card wording is unchanged. Markdown list markers remain visible and HTTP(S) Markdown links become clickable.
+## Regenerate images
 
-Functional references: [LINDDUN GO digital](https://downloads.linddun.org/linddun-go/digital/v241203/index.html) and [card browser](https://downloads.linddun.org/linddun-go/cardbrowser/v241203/index.html). No LINDDUN source code or assets were copied. No endorsement is implied.
+Download `plot4ai-A6.pdf` from release 43 into `tmp/pdf-browser/`. With Python, PyMuPDF and Pillow installed, run:
 
-## Development
+```sh
+python3 scripts/extract_cards.py tmp/pdf-browser/plot4ai-A6.pdf
+```
 
-`npm test` runs Node's built-in test runner against deck completeness, filters, shuffling, session import validation and CSV safety. The application uses escaped content and supports only HTTP(S) Markdown links. Imported sessions are bounded and validated before replacing the current session.
+The extraction checks every front/back page against the corresponding card label before writing the manifest. The original PDF and verification renders stay locally in ignored `tmp/`. Generated card assets and the manifest are tracked.
 
-Next work: test with a facilitation group; consider authenticated hosting only when requested.
+Run `npm test` with Node 18+ for manifest, source-page mapping and image completeness checks. Test notes and screenshots are local only under `tmp/pdf-browser/`.

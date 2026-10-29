@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>PLOT4ai · Workshop</title><link rel="stylesheet" href="style.css"><script type="module" src="app.js"></script></head>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>PLOT4ai Card Browser</title><link rel="stylesheet" href="style.css"><script type="module" src="app.js"></script></head>
 <body>
-<header><a class="brand" href="#browser">PLOT<span>4</span>ai <small>WORKSHOP</small></a><nav aria-label="Main"><a href="#browser">Card browser</a><a href="#table">Digital table</a><a href="#about">About</a></nav><span class="private">LOCAL SESSION</span></header>
-<main id="app"><p>Loading the deck…</p></main>
-<footer>Cards: <a href="https://plot4.ai/" target="_blank" rel="noreferrer">PLOT4ai</a> · <a href="LICENSE">CC BY-SA 4.0</a> · Independent digital adaptation · No account or analytics</footer>
-<dialog id="detail"><button class="close" aria-label="Close card">✕</button><div id="detail-content"></div></dialog>
-<p id="notice" role="status"></p>
+<header><div><h1>PLOT4ai <span>Card Browser</span></h1><p>The original cards, ready to browse.</p></div><a href="https://github.com/PLOT4ai/plot4ai-library/releases/tag/pdf-release-43" target="_blank" rel="noreferrer">Original PDF ↗</a></header>
+<main><div class="filters"><label>Category<select id="category"><option value="">All categories</option></select></label><label>Find a card<input id="search" type="search" placeholder="Search by name…"></label><p id="count" role="status">Loading cards…</p></div><div id="gallery" class="gallery"></div><p id="error" role="alert" hidden>Could not load the cards. Serve this folder over HTTP and reload.</p></main>
+<footer>Cards by <a href="https://plot4.ai/" target="_blank" rel="noreferrer">PLOT4ai</a> · <a href="LICENSE">CC BY-SA 4.0</a> · PDF release 43 · Independent image browser</footer>
+<dialog id="viewer" aria-labelledby="card-title"><div class="viewer-toolbar"><h2 id="card-title"></h2><button id="close" aria-label="Close card">✕</button></div><div class="viewer-controls"><button id="previous" aria-label="Previous card">← Previous</button><button id="flip">Show back</button><button id="zoom">Zoom +</button><button id="next" aria-label="Next card">Next →</button></div><p id="position"></p><div class="image-stage"><img id="full-card" alt=""></div><p class="hint">Click the card to flip · ← → to browse · F to flip · Esc to close</p><p id="image-error" role="alert" hidden>Image could not load. Close and try again.</p></dialog>
 </body></html>

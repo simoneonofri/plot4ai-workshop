@@ -1,50 +1,46 @@
-import {flatten,filterCards,shuffle,validateSession,csv} from './core.js';
-const REVISION='5f4b43e36d372ab7160e4ada7f81b4848c42056f', KEY='plot4ai-workshop-v1';
-const $=s=>document.querySelector(s), app=$('#app');
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let cards=[], selected=new Set(), filters={query:'',category:'',phases:'',roles:'',aitypes:''}, session=null, timer=0, running=false, lastTick=0;
-function notify(message){$('#notice').textContent=message;$('#notice').style.display='block';clearTimeout(notify.timeout);notify.timeout=setTimeout(()=>$('#notice').style.display='none',4500);}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(session));}catch{notify('Browser storage unavailable. Export JSON to preserve your session.');}}
-function download(name,content,type){const url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-function rich(value){
-  // Escape all upstream content; only explicitly allowed Markdown links become HTML.
-  return esc(value).replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g,(_,label,url)=>`<a href="${url}" target="_blank" rel="noreferrer">${label}</a>`);
+const $ = selector => document.querySelector(selector);
+const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let cards = [], visible = [], index = 0, side = 'front', opener = null;
+const viewer = $('#viewer');
+function filter() {
+  const query = $('#search').value.trim().toLowerCase(), category = $('#category').value;
+  visible = cards.filter(c => (!category || c.category === category) && (!query || c.label.toLowerCase().includes(query)));
+  $('#count').textContent = `${visible.length} / ${cards.length} cards`;
+  $('#gallery').innerHTML = visible.length ? visible.map((c, i) => `<button class="tile" data-index="${i}" aria-label="Open ${escape(c.label)}"><img src="${c.thumbnail}" alt="${escape(c.label)} — front" width="260" height="361" loading="lazy" decoding="async"><span>${escape(c.label)}</span></button>`).join('') : '<p class="empty">No matching cards.</p>';
+  document.querySelectorAll('.tile').forEach(button => button.addEventListener('click', () => {
+    opener = button; index = Number(button.dataset.index); side = 'front'; show(); viewer.showModal();
+  }));
 }
-function tags(c){return `<div class="tags">${[...c.phases,...c.roles,...c.aitypes].map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`;}
-function fullCard(c){return `<p class="eyebrow">${esc(c.category)} · ${esc(c.id)}</p><h2>${esc(c.label)}</h2><p class="question">${esc(c.question)}</p><p><strong>Threat if the answer is: ${esc(c.threatif)}</strong></p>${tags(c)}<div class="prose">${rich(c.explanation)}</div><details><summary>Recommendations</summary><div class="prose">${rich(c.recommendation)}</div></details>${c.sources?`<details><summary>Sources</summary><div class="prose">${rich(c.sources)}</div></details>`:''}${c.cia?`<p class="count">CIA: ${esc(c.cia.join(', '))}</p>`:''}`;}
-function showCard(id){const c=cards.find(c=>c.id===id);if(!c)return;$('#detail-content').innerHTML=fullCard(c);$('#detail').showModal();}
-$('#detail .close').onclick=()=>$('#detail').close();
-function options(key){const values=key==='category'?[...new Set(cards.map(c=>c.category))]:[...new Set(cards.flatMap(c=>c[key]??[]))];return `<option value="">All</option>`+values.map(v=>`<option ${filters[key]===v?'selected':''} value="${esc(v)}">${esc(v)}</option>`).join('');}
-function browser(){
-  app.innerHTML=`<section class="hero"><div><p class="eyebrow">Explore the library</p><h1>A different lens on AI risk.</h1><p class="intro">Browse the PLOT4ai cards. Build a deck around your system, then bring it to the table.</p></div><span class="count">${cards.length} CARDS / 8 CATEGORIES</span></section><section class="filters" aria-label="Card filters"><label>Search the deck<input id="search" type="search" placeholder="A threat, a question, a keyword…" value="${esc(filters.query)}"></label>${[['category','Category'],['phases','Lifecycle phase'],['roles','Role'],['aitypes','AI type']].map(([k,l])=>`<label>${l}<select data-filter="${k}">${options(k)}</select></label>`).join('')}</section><div class="toolbar"><span class="count" id="results" aria-live="polite"></span><button id="select-visible">Select results</button><button id="clear">Clear selection</button><button class="primary" id="start">Start selected deck</button></div><div class="grid" id="cards"></div>`;
-  $('#search').oninput=e=>{filters.query=e.target.value;renderGrid();};document.querySelectorAll('[data-filter]').forEach(el=>el.onchange=()=>{filters[el.dataset.filter]=el.value;renderGrid();});
-  $('#select-visible').onclick=()=>{filterCards(cards,filters).forEach(c=>selected.add(c.id));renderGrid();};$('#clear').onclick=()=>{selected.clear();renderGrid();};$('#start').onclick=()=>start([...selected]);renderGrid();
+function show() {
+  const card = visible[index];
+  $('#card-title').textContent = card.label;
+  $('#full-card').src = card[side];
+  $('#full-card').alt = `${card.label} — ${side}. Original PLOT4ai card; use the source JSON for machine-readable text.`;
+  $('#position').textContent = `${index + 1} / ${visible.length} · ${side === 'front' ? 'Front' : 'Back'}`;
+  $('#flip').textContent = side === 'front' ? 'Show back' : 'Show front';
+  $('#previous').disabled = index === 0; $('#next').disabled = index === visible.length - 1;
+  $('#image-error').hidden = true;
+  $('#full-card').classList.remove('zoomed'); $('#zoom').textContent = 'Zoom +';
+  viewer.scrollTop = 0;
 }
-function renderGrid(){const visible=filterCards(cards,filters);$('#results').textContent=`${visible.length} results · ${selected.size} selected`;$('#start').disabled=!selected.size;
-  $('#cards').innerHTML=visible.length?visible.map(c=>`<article class="card" style="--card:#${c.colour}"><div class="category">${esc(c.category)}</div><label class="pick"><input type="checkbox" data-pick="${c.id}" aria-label="Select ${esc(c.label)}" ${selected.has(c.id)?'checked':''}></label><h3>${esc(c.label)}</h3><p class="question">${esc(c.question)}</p><button data-open="${c.id}">Read card ↗</button></article>`).join(''):'<p class="empty">No matching cards. Try another filter.</p>';
-  document.querySelectorAll('[data-pick]').forEach(el=>el.onchange=()=>{el.checked?selected.add(el.dataset.pick):selected.delete(el.dataset.pick);$('#results').textContent=`${visible.length} results · ${selected.size} selected`;$('#start').disabled=!selected.size;});document.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>showCard(el.dataset.open));
-}
-function start(ids){if(!ids.length)return;if(session&&!confirm('Replace the current session? Export JSON first if you want a backup.'))return;
- session={version:1,revision:REVISION,name:'Untitled workshop',order:shuffle(ids),position:0,notes:{}};timer=0;running=false;save();if(location.hash==='#table')table();else location.hash='table';}
-function emptyNote(){return {status:'unreviewed',severity:'',location:'',description:'',mitigation:''};}
-function table(){
- if(!session){app.innerHTML=`<p class="eyebrow">Facilitated review</p><h1>Bring your system to the table.</h1><p class="intro">Agree on the system and scope with your team. Review each question together, record the threats you identify and discuss possible responses.</p><div class="empty"><h2>Your next session starts here.</h2><p>Use all ${cards.length} cards, or select a focused deck in the browser.</p><div class="toolbar"><button class="primary" id="all">Start full deck</button><a class="button" href="#browser">Choose cards</a>${importControl()}</div></div>`;$('#all').onclick=()=>start(cards.map(c=>c.id));bindImport();return;}
- const c=cards.find(c=>c.id===session.order[session.position]), n=session.notes[c.id]??emptyNote(), done=Object.values(session.notes).filter(n=>n.status!=='unreviewed').length, threats=Object.values(session.notes).filter(n=>n.status==='threat').length;
- app.innerHTML=`<section class="hero"><div><p class="eyebrow">Digital table / ${session.order.length} cards</p><h1>One question. Many perspectives.</h1></div><div><span class="timer" id="clock">${time()}</span> <button id="timer">${running?'Pause':'Start timer'}</button></div></section><div class="toolbar"><span class="count">${done} reviewed · ${threats} threats · Card ${session.position+1} / ${session.order.length}</span><button id="export">Export JSON</button><button id="csv">Export CSV</button>${importControl()}<button id="new">New session</button></div><div class="progress" aria-label="Review progress"><span style="width:${done/session.order.length*100}%"></span></div><div class="toolbar"><button id="prev" ${session.position===0?'disabled':''}>← Previous</button><button id="next" ${session.position===session.order.length-1?'disabled':''}>Next card →</button></div><div class="table-layout"><article class="playing-card" style="--card:#${c.colour}">${fullCard(c)}</article><aside class="panel"><h2>Capture the discussion</h2><label>Session name<input id="name" maxlength="500" value="${esc(session.name)}"></label><label>Review outcome<select id="status">${[['unreviewed','Not reviewed'],['threat','Threat identified'],['clear','Discussed · no threat identified'],['skip','Skipped / not applicable']].map(([v,l])=>`<option value="${v}" ${n.status===v?'selected':''}>${l}</option>`).join('')}</select></label><label>Severity<select id="severity">${['','Low','Medium','High','Critical'].map(v=>`<option ${n.severity===v?'selected':''}>${v||'Not assessed'}</option>`).join('')}</select></label>${[['location','Threat location / system component'],['description','Threat description and notes'],['mitigation','Proposed response / mitigation']].map(([k,l])=>`<label>${l}<textarea id="${k}" maxlength="30000">${esc(n[k])}</textarea></label>`).join('')}<p class="count" id="saved" aria-live="polite">Changes save in this browser. Export a backup to keep or share them.</p></aside></div><section><h2>Session overview</h2><div class="review-list">${session.order.map((id,i)=>{const card=cards.find(c=>c.id===id);return `<button data-jump="${i}">${String(i+1).padStart(2,'0')} · ${esc(card.label)} <span class="tag">${esc(session.notes[id]?.status??'unreviewed')}</span></button>`;}).join('')}</div></section>`;
- $('#timer').onclick=()=>{running=!running;lastTick=Date.now();$('#timer').textContent=running?'Pause':'Start timer';};
- for(const k of ['status','severity','location','description','mitigation']) $('#'+k).oninput=()=>{session.notes[c.id]={...session.notes[c.id]??emptyNote(),[k]:$('#'+k).value};save();$('#saved').textContent='Saved in this browser.';};
- $('#status').onchange=()=>{session.notes[c.id]={...session.notes[c.id]??emptyNote(),status:$('#status').value};save();table();};
- $('#name').oninput=()=>{session.name=$('#name').value;save();};$('#prev').onclick=()=>jump(session.position-1);$('#next').onclick=()=>jump(session.position+1);
- document.querySelectorAll('[data-jump]').forEach(el=>el.onclick=()=>jump(Number(el.dataset.jump)));
- $('#export').onclick=()=>download('plot4ai-session.json',JSON.stringify(session,null,2),'application/json');
- $('#csv').onclick=()=>download('plot4ai-findings.csv',csv([['Session','Card ID','Category','Card','Question','Threat if','Status','Severity','Location','Description','Mitigation'],...session.order.map(id=>{const c=cards.find(c=>c.id===id),n=session.notes[id]??emptyNote();return [session.name,id,c.category,c.label,c.question,c.threatif,n.status,n.severity,n.location,n.description,n.mitigation];})]),'text/csv;charset=utf-8');
- $('#new').onclick=()=>{if(confirm('End this session? Export JSON first to keep a backup.')){session=null;running=false;save();table();}};bindImport();
-}
-function jump(pos){if(pos<0||pos>=session.order.length)return;session.position=pos;timer=0;lastTick=Date.now();save();table();window.scrollTo({top:0,behavior:'instant'});}
-function time(){return `${String(Math.floor(timer/60)).padStart(2,'0')}:${String(timer%60).padStart(2,'0')}`;}
-setInterval(()=>{if(running){const now=Date.now(),seconds=Math.floor((now-lastTick)/1000);timer+=seconds;lastTick+=seconds*1000;if($('#clock'))$('#clock').textContent=time();}},500);
-function importControl(){return '<label class="button file-label">Import JSON<input id="import" type="file" accept="application/json,.json" aria-label="Import session JSON"></label>';}
-function bindImport(){$('#import').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>5000000)throw Error('Session file too large.');const loaded=validateSession(JSON.parse(await file.text()),new Set(cards.map(c=>c.id)),REVISION);if(session&&!confirm('Replace the current session with this file?'))return;session=loaded;timer=0;running=false;save();table();notify('Session restored.');}catch(err){notify(err.message);}finally{e.target.value='';}};}
-function about(){app.innerHTML=`<p class="eyebrow">About this adaptation</p><h1>Make room for the conversation.</h1><p class="intro">An independent PLOT4ai card browser and digital workshop table, functionally inspired by LINDDUN GO. This is a shared-screen facilitation tool; it does not synchronize participants.</p><h2>A simple session</h2><ol class="prose"><li>Agree on the system boundary, stakeholders and a diagram.</li><li>Select cards by category, lifecycle phase, role or AI type.</li><li>Read each question and its “Threat if” answer. Discuss it in the context of your system.</li><li>Record concrete threats, affected components, severity and possible responses.</li><li>Export the session JSON for resuming, and CSV for follow-up.</li></ol><h2>Sources & attribution</h2><p class="prose">Card content is reproduced unchanged from <a href="https://github.com/PLOT4ai/plot4ai-library/tree/${REVISION}">PLOT4ai / plot4ai-library</a>, revision ${REVISION}, under <a href="LICENSE">Creative Commons Attribution-ShareAlike 4.0 International</a>. Display IDs and the interface are additions. Card bodies preserve the upstream wording; Markdown links are displayed as links and list markers remain visible.</p><p class="prose">References: <a href="https://downloads.linddun.org/linddun-go/digital/v241203/index.html">LINDDUN GO digital</a> and <a href="https://downloads.linddun.org/linddun-go/cardbrowser/v241203/index.html">card browser</a>. No LINDDUN code, artwork or branding is included. This adaptation is not endorsed by PLOT4ai or LINDDUN.</p><h2>Your session data</h2><p class="prose">Notes stay in local storage on this browser and origin. Clearing browser data removes them. Export JSON regularly; the JSON includes your notes and can contain sensitive system details. There are no analytics, external fonts, or server-side session storage. The timer is per card and is not part of the saved session.</p>`;}
-function route(){const view=location.hash.slice(1)||'browser';document.querySelectorAll('nav a').forEach(a=>a.toggleAttribute('aria-current',a.hash===`#${view}`));({browser,table,about}[view]??browser)();}
-try{const response=await fetch('./deck.json');if(!response.ok)throw Error('Deck could not be loaded.');cards=flatten(await response.json());selected=new Set(cards.map(c=>c.id));try{const stored=JSON.parse(localStorage.getItem(KEY));if(stored)session=validateSession(stored,new Set(cards.map(c=>c.id)),REVISION);}catch{notify('Saved session could not be restored. Import a JSON backup if available.');}window.addEventListener('hashchange',route);route();}catch(error){app.innerHTML=`<h1>Unable to load the deck.</h1><p>${esc(error.message)} Serve this folder with a local HTTP server; see README.</p>`;}
+function flip() { side = side === 'front' ? 'back' : 'front'; show(); }
+function move(delta) { if (index + delta < 0 || index + delta >= visible.length) return; index += delta; side = 'front'; show(); }
+$('#close').onclick = () => viewer.close();
+$('#zoom').onclick = () => { const expanded = $('#full-card').classList.toggle('zoomed'); $('#zoom').textContent = expanded ? 'Zoom −' : 'Zoom +'; };
+$('#flip').onclick = flip; $('#full-card').onclick = flip;
+$('#previous').onclick = () => move(-1); $('#next').onclick = () => move(1);
+$('#full-card').onerror = () => { $('#image-error').hidden = false; };
+viewer.addEventListener('close', () => opener?.focus());
+viewer.addEventListener('click', event => { if (event.target === viewer) { const r=viewer.getBoundingClientRect(); if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom) viewer.close(); } });
+viewer.addEventListener('keydown', event => {
+  if (event.key === 'ArrowRight') { event.preventDefault(); move(1); }
+  if (event.key === 'ArrowLeft') { event.preventDefault(); move(-1); }
+  if (event.key.toLowerCase() === 'f') { event.preventDefault(); flip(); }
+});
+$('#search').addEventListener('input', filter); $('#category').addEventListener('change', filter);
+try {
+  const response = await fetch('cards.json'); if (!response.ok) throw Error('Manifest unavailable');
+  cards = (await response.json()).cards;
+  $('#category').insertAdjacentHTML('beforeend', [...new Set(cards.map(c => c.category))].map(c => `<option value="${escape(c)}">${escape(c)}</option>`).join(''));
+  filter();
+} catch { $('#error').hidden = false; $('#count').textContent = 'Unable to load'; }
